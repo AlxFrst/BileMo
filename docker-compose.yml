@@ -1,0 +1,13 @@
+services:
+  db:
+    image: mysql:latest
+    restart: always
+    environment:
+      MYSQL_DATABASE: BileMo
+      MYSQL_USER: BileMo
+      MYSQL_PASSWORD: BileMo
+      MYSQL_ROOT_PASSWORD: root_password
+    volumes:
+      - ./data:/var/lib/mysql
+    ports:
+      - 3306:3306
