@@ -7,26 +7,36 @@ use DateTimeImmutable;
 use Doctrine\Bundle\FixturesBundle\Fixture;
 use Doctrine\Persistence\ObjectManager;
 use Doctrine\Common\DataFixtures\DependentFixtureInterface;
-
 use Symfony\Component\Uid\Uuid;
 
 class CustomerFixtures extends Fixture implements DependentFixtureInterface
 {
+    private $firstNames = [
+        'Alexandre', 'Brigitte', 'Charles', 'Dominique', 'Élodie', 'François', 'Gabrielle', 'Hugo', 'Isabelle', 'Jean'
+    ];
 
-    // MODIFY Fixtures to match Entity + OneFile By FixtureEntity.
-    /**
-     * load function takes Object Manager as a parameter to push fixtures in bdd. It will create random data according to logic implemented in it.
-     *
-     * @param ObjectManager $manager
-     * @return void
-     */
+    private $lastNames = [
+        'Dupont', 'Martin', 'Bernard', 'Robert', 'Petit', 'Durand', 'Leroy', 'Moreau', 'Simon', 'Laurent'
+    ];
+
+    private $streets = [
+        'rue de la Paix', 'avenue des Champs-Élysées', 'boulevard Saint-Germain', 'rue du Faubourg Saint-Honoré', 'rue de Rivoli'
+    ];
+
     public function load(ObjectManager $manager): void
     {
-        for ($i = 0; $i < 25; $i++) {
+        for ($i = 0; $i < 100; $i++) {
+            $firstName = $this->firstNames[array_rand($this->firstNames)];
+            $lastName = $this->lastNames[array_rand($this->lastNames)];
+            $email = strtolower($firstName) . "." . strtolower($lastName) . ($i + 1) . "@example.com";
+            $address = mt_rand(1, 100) . " " . $this->streets[array_rand($this->streets)];
+
             $customer = new Customer();
-            $customer->setFirstName("Alex".$i);
-            $customer->setLastName("Forestier".$i);
-            $customer->setEmail("customer@bilemo".$i.".com");
+            $customer->setFirstName($firstName);
+            $customer->setLastName($lastName);
+            $customer->setEmail($email);
+            $customer->setFacturationAddress($address);
+
             // Set the start and end dates for the range.
             $start = strtotime('2024-01-01 00:00:00');
             $end = strtotime('2024-12-31 00:00:00');
@@ -35,16 +45,13 @@ class CustomerFixtures extends Fixture implements DependentFixtureInterface
 
             // Create a DateTime object from the random timestamp.
             $randomDate = new DateTimeImmutable();
-            $customer->setFacturationAddress(mt_rand(1,90)." rue de la paix ".$i);
             $customer->setCreatedAt($randomDate->setTimestamp($randomTimestamp));
             $customer->setUuid(Uuid::v6());
-            $customer->setReseller($this->getReference('reseller_'.mt_rand(0, 4)));
+            $customer->setReseller($this->getReference('reseller_' . mt_rand(0, 14)));
             $manager->persist($customer);
         }
 
         $manager->flush();
-
-        
     }
 
     public function getDependencies()
