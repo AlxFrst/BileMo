@@ -1,97 +1,104 @@
 <?php
 
-use GuzzleHttp\Client;
-use PHPUnit\Framework\TestCase;
+// tests/ApiTest.php
+namespace App\Tests;
 
-class ApiTest extends TestCase
+use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+
+class ApiTest extends WebTestCase
 {
-    private $client;
     private $token;
 
-    public function setUp(): void
+    protected function setUp(): void
     {
-        $this->client = new Client([
-            'base_uri' => 'http://localhost:8000', // Assurez-vous de mettre l'URL correcte
-            'http_errors' => false
-        ]);
-
-        // Authentification pour obtenir le token JWT
-        $response = $this->client->post('/api/auth/login_check', [
-            'json' => [
-                'username' => 'user@bilemo0.com', // Remplacez par des informations d'identification valides
-                'password' => 'sdqqfdsrfser'
-            ]
-        ]);
-
-        $data = json_decode($response->getBody(), true);
-        $this->token = $data['token'] ?? null;
+        $client = static::createClient();
+        $client->request('POST', '/api/auth/login_check', [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([
+            'username' => 'user@bilemo0.com',
+            'password' => 'sdqqfdsrfser',
+        ]));
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $this->token = $data['token'];
     }
 
-    public function testGetProductList()
+    public function testLogin()
     {
-        $response = $this->client->get('/api/smartphones', [
-            'headers' => ['Authorization' => "Bearer {$this->token}"]
-        ]);
+        $client = static::createClient();
+        $client->request('POST', '/api/auth/login_check', [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([
+            'username' => 'user@bilemo0.com',
+            'password' => 'sdqqfdsrfser',
+        ]));
 
-        $this->assertEquals(200, $response->getStatusCode());
-        $data = json_decode($response->getBody(), true);
-        $this->assertNotEmpty($data);
+        $this->assertEquals(200, $client->getResponse()->getStatusCode());
+        $this->assertJson($client->getResponse()->getContent());
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $this->assertArrayHasKey('token', $data);
     }
 
-    public function testGetProductDetails()
+    public function testGetCustomers()
     {
-        // Récupérer la liste des produits pour obtenir un ID dynamique
-        $listResponse = $this->client->get('/api/smartphones', [
-            'headers' => ['Authorization' => "Bearer {$this->token}"]
-        ]);
-        $listData = json_decode($listResponse->getBody(), true);
-        $this->assertNotEmpty($listData);
-
-        $firstProductUuid = $listData['hydra:member'][0]['uuid'];
-
-        // Utiliser l'ID récupéré pour le détail du produit
-        $response = $this->client->get("/api/smartphones/{$firstProductUuid}", [
-            'headers' => ['Authorization' => "Bearer {$this->token}"]
+        $client = static::createClient();
+        $client->request('GET', '/api/customers', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $this->token,
         ]);
 
-        $this->assertEquals(200, $response->getStatusCode());
-        $data = json_decode($response->getBody(), true);
-        print_r($data); // Ajout de l'affichage de la réponse pour diagnostic
-        $this->assertArrayHasKey('name', $data);
+        $this->assertEquals(200, $client->getResponse()->getStatusCode());
+        $this->assertJson($client->getResponse()->getContent());
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $this->assertArrayHasKey('hydra:member', $data);
     }
 
-    public function testGetCustomerList()
+    public function testAddCustomer()
     {
-        $response = $this->client->get('/api/customers', [
-            'headers' => ['Authorization' => "Bearer {$this->token}"]
-        ]);
+        $client = static::createClient();
+        $client->request('POST', '/api/customers', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $this->token,
+            'CONTENT_TYPE' => 'application/ld+json',
+        ], json_encode([
+            'lastName' => 'Doe',
+            'firstName' => 'John',
+            'facturationAddress' => '123 Main St',
+            'email' => 'john.doe@example.com'
+        ]));
 
-        $this->assertEquals(200, $response->getStatusCode());
-        $data = json_decode($response->getBody(), true);
-        $this->assertNotEmpty($data);
+        $this->assertEquals(201, $client->getResponse()->getStatusCode());
+        $this->assertJson($client->getResponse()->getContent());
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $this->assertArrayHasKey('uuid', $data);
     }
 
-    public function testGetCustomerDetails()
+    public function testDeleteCustomer()
     {
-        // Récupérer la liste des clients pour obtenir un ID dynamique
-        $listResponse = $this->client->get('/api/customers', [
-            'headers' => ['Authorization' => "Bearer {$this->token}"]
+        $client = static::createClient();
+        // Ajoutez un client pour ensuite le supprimer
+        $client->request('POST', '/api/customers', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $this->token,
+            'CONTENT_TYPE' => 'application/ld+json',
+        ], json_encode([
+            'lastName' => 'Doe',
+            'firstName' => 'Jane',
+            'facturationAddress' => '456 Main St',
+            'email' => 'jane.doe@example.com'
+        ]));
+
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $customerId = $data['uuid'];
+
+        // Supprimez le client
+        $client->request('DELETE', '/api/customers/' . $customerId, [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $this->token,
         ]);
-        $listData = json_decode($listResponse->getBody(), true);
-        $this->assertNotEmpty($listData);
 
-        $firstCustomerUuid = $listData['hydra:member'][0]['@id'];
-        $firstCustomerUuid = str_replace('/api/customers/', '', $firstCustomerUuid); // Extraire uniquement l'UUID
-
-        // Utiliser l'ID récupéré pour le détail du client
-        $response = $this->client->get("/api/customers/{$firstCustomerUuid}", [
-            'headers' => ['Authorization' => "Bearer {$this->token}"]
-        ]);
-
-        $this->assertEquals(200, $response->getStatusCode());
-        $data = json_decode($response->getBody(), true);
-        print_r($data); // Ajout de l'affichage de la réponse pour diagnostic
-        $this->assertArrayHasKey('lastName', $data);
+        $this->assertEquals(204, $client->getResponse()->getStatusCode());
     }
 
+    public function testGetSmartphones()
+    {
+        $client = static::createClient();
+        $client->request('GET', '/api/smartphones');
+
+        $this->assertEquals(200, $client->getResponse()->getStatusCode());
+        $this->assertJson($client->getResponse()->getContent());
+        $data = json_decode($client->getResponse()->getContent(), true);
+        $this->assertArrayHasKey('hydra:member', $data);
+    }
 }
